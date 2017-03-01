@@ -1,6 +1,4 @@
-import cloneDeep from 'lodash/cloneDeep'
 import isArray from '../../util/isArray'
-import isPlainObject from '../../util/isPlainObject'
 import isString from '../../util/isString'
 import EventEmitter from '../../util/EventEmitter'
 import forEach from '../../util/forEach'
@@ -51,21 +49,12 @@ class Data extends EventEmitter {
     @returns {Node|Object|Primitive|undefined} a Node instance, a value or undefined if not found.
    */
   get(path, strict) {
-    let result
-    let realPath = this.getRealPath(path)
-    if (!realPath) {
-      return undefined
-    }
-    if (isString(realPath)) {
-      result = this.nodes[realPath]
-    } else if (realPath.length === 1) {
-      result = this.nodes[realPath[0]]
-    } else {
-      result = this.nodes[realPath[0]][realPath[1]]
-    }
+    let result = this._get(path)
     if (strict && result === undefined) {
       if (isString(path)) {
         throw new Error("Could not find node with id '"+path+"'.")
+      } else if (!this.contains(path[0])) {
+        throw new Error("Could not find node with id '"+path[0]+"'.")
       } else {
         throw new Error("Property for path '"+path+"' us undefined.")
       }
@@ -73,31 +62,23 @@ class Data extends EventEmitter {
     return result
   }
 
-  getRealPath(path) {
-    if (!path) return false
-    if (isString(path)) return path
-    if (path.length < 3) return path
-    let realPath = []
-    let context = this.nodes[path[0]]
-    let prop, name
-    let L = path.length
-    let i = 1
-    for (; i<L-1; i++) {
-      if (!context) return false
-      name = path[i]
-      prop = context[name]
-      if (isArray(prop) || isPlainObject(prop)) {
-        realPath.push(name)
-        context = prop
-      } else if (isString(prop)) {
-        context = this.nodes[prop]
-        realPath = [prop]
-      } else {
-        return false
+  _get(path) {
+    if (!path) return undefined
+    let result
+    if (isString(path)) {
+      result = this.nodes[path]
+    } else if (path.length === 1) {
+      result = this.nodes[path[0]]
+    } else if (path.length > 1) {
+      let context = this.nodes[path[0]]
+      for (let i = 1; i < path.length-1; i++) {
+        if (!context) return undefined
+        context = context[path[i]]
       }
+      if (!context) return undefined
+      result = context[path[path.length-1]]
     }
-    realPath.push(path[i])
-    return realPath
+    return result
   }
 
   /**
@@ -149,6 +130,7 @@ class Data extends EventEmitter {
    */
   delete(nodeId) {
     var node = this.nodes[nodeId]
+    if (!node) return
     node.dispose()
     delete this.nodes[nodeId]
 
@@ -174,29 +156,34 @@ class Data extends EventEmitter {
     @returns {Node} The deleted node.
    */
   set(path, newValue) {
-    var realPath = this.getRealPath(path)
-    if (!realPath) {
-      console.error('Could not resolve path', path)
-      return
-    }
-    var node = this.get(realPath[0])
-    var oldValue = node[realPath[1]]
-    node[realPath[1]] = newValue
-
+    let node = this.get(path[0])
+    let oldValue = this._set(path, newValue)
     var change = {
       type: 'set',
       node: node,
-      path: realPath,
+      path: path,
       newValue: newValue,
       oldValue: oldValue
     }
-
     if (this.__QUEUE_INDEXING__) {
       this.queue.push(change)
     } else {
       this._updateIndexes(change)
     }
+    return oldValue
+  }
 
+  _set(path, newValue) {
+    let oldValue
+    if (path.length === 2) {
+      oldValue = this.nodes[path[0]][path[1]]
+      this.nodes[path[0]][path[1]] = newValue
+    } else if (path.length === 3) {
+      oldValue = this.nodes[path[0]][path[1]][path[2]]
+      this.nodes[path[0]][path[1]][path[2]] = newValue
+    } else {
+      throw new Error('Path of length '+path.length+' not supported.')
+    }
     return oldValue
   }
 
@@ -208,15 +195,14 @@ class Data extends EventEmitter {
     @returns {any} The value before applying the update.
   */
   update(path, diff) {
-    // TODO: do we really want this incremental implementation here?
     var realPath = this.getRealPath(path)
     if (!realPath) {
       console.error('Could not resolve path', path)
       return
     }
-    var node = this.get(realPath[0])
-    var oldValue = this.get(realPath)
-    var newValue
+    let node = this.get(realPath[0])
+    let oldValue = this._get(realPath)
+    let newValue
     if (diff.isOperation) {
       newValue = diff.apply(oldValue)
     } else {
@@ -264,7 +250,7 @@ class Data extends EventEmitter {
         throw new Error('Diff is not supported:', JSON.stringify(diff))
       }
     }
-    this.nodes.set(realPath, newValue)
+    this._set(realPath, newValue)
 
     var change = {
       type: 'update',
@@ -338,9 +324,13 @@ class Data extends EventEmitter {
     @deprecated
    */
   toJSON() {
+    let nodes = {}
+    forEach(this.nodes, (node)=>{
+      nodes[node.id] = node.toJSON()
+    })
     return {
       schema: [this.schema.id, this.schema.version],
-      nodes: cloneDeep(this.nodes)
+      nodes: nodes
     }
   }
 

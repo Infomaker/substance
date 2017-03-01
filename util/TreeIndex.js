@@ -1,7 +1,7 @@
-import isString from 'lodash/isString'
-import isArray from 'lodash/isArray'
-import get from 'lodash/get'
-import setWith from 'lodash/setWith'
+import get from 'lodash-es/get'
+import setWith from 'lodash-es/setWith'
+import isString from './isString'
+import isArray from './isArray'
 import deleteFromArray from './deleteFromArray'
 
 class TreeNode {}

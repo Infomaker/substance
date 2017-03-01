@@ -1,30 +1,30 @@
-import debounce from 'lodash/debounce'
-import isString from 'lodash/isString'
+import debounce from '../../util/debounce'
+import isString from '../../util/isString'
 import sendRequest from '../../util/sendRequest'
 
 const DEFAULT_API_URL = 'http://localhost:4777/api/check'
 
 class SpellCheckManager {
 
-  constructor(session, options) {
+  constructor(editorSession, options) {
     options = options || {}
     let wait = options.wait || 750
 
-    this.session = session
+    this.editorSession = editorSession
     this.apiURL = options.apiURL || DEFAULT_API_URL
 
     // TODO: MarkersManager is basically a TextPropertyManager
-    this.textPropertyManager = session.markersManager
-    this.markersManager = session.markersManager
+    this.textPropertyManager = editorSession.markersManager
+    this.markersManager = editorSession.markersManager
 
     this._schedule = {}
     this._scheduleCheck = debounce(this._runSpellCheck.bind(this), wait)
 
-    session.onFinalize('document', this._onDocumentChange, this)
+    editorSession.onFinalize('document', this._onDocumentChange, this)
   }
 
   dispose() {
-    this.session.off(this)
+    this.editorSession.off(this)
   }
 
   check(path) {
@@ -38,7 +38,8 @@ class SpellCheckManager {
     })
   }
 
-  _onDocumentChange(change) {
+  _onDocumentChange(change, info) {
+    if (info.spellcheck) return
     // Note: instead of analyzing the model, we consider
     // all existing TextPropertyComponents instead
     // as this reflects what is presented to the user
@@ -49,9 +50,10 @@ class SpellCheckManager {
   }
 
   _runSpellCheck(pathStr) {
+    // console.log('Running spell-checker on', pathStr)
     let path = pathStr.split(',')
-    let text = this.session.getDocument().get(path)
-    let lang = this.session.getLanguage()
+    let text = this.editorSession.getDocument().get(path)
+    let lang = this.editorSession.getLanguage()
     if (!text || !isString(text)) return
     sendRequest({
       method: 'POST',
@@ -77,16 +79,33 @@ class SpellCheckManager {
     Removes all spell errors on the given path first.
   */
   _addSpellErrors(path, data) {
-    let markers = data.map(function(m) {
+    let doc = this.editorSession.getDocument()
+    let oldErrors = doc.getIndex('markers').get(path).filter((marker) => {
+      return marker.type === 'spell-error'
+    })
+    let newErrors = data.map(function(m) {
       return {
         type: 'spell-error',
-        path: path,
-        startOffset: m.start,
-        endOffset: m.end,
+        start: {
+          path: path,
+          offset: m.start
+        },
+        end: {
+          offset: m.end
+        },
         suggestions: m.suggestions
       }
     })
-    this.markersManager.setMarkers(path, 'spell-error', markers)
+    this.editorSession.transaction((tx) => {
+      // remove the old markers first
+      oldErrors.forEach((spellError) => {
+        tx.delete(spellError.id)
+      })
+      // then add the new ones
+      newErrors.forEach((spellError) => {
+        tx.create(spellError)
+      })
+    }, { history: false, spellcheck: true })
   }
 }
 

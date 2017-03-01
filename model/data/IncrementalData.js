@@ -1,6 +1,6 @@
-import isString from 'lodash/isString'
-import isArray from 'lodash/isArray'
-import cloneDeep from 'lodash/cloneDeep'
+import isString from '../../util/isString'
+import isArray from '../../util/isArray'
+import cloneDeep from '../../util/cloneDeep'
 import Data from './Data'
 import ObjectOperation from './ObjectOperation'
 import ArrayOperation from './ArrayOperation'
@@ -21,7 +21,10 @@ class IncrementalData extends Data {
     @returns {ObjectOperation} The applied operation.
    */
   create(nodeData) {
-    var op = ObjectOperation.Create([nodeData.id], nodeData)
+    if (nodeData._isNode) {
+      nodeData = nodeData.toJSON()
+    }
+    let op = ObjectOperation.Create([nodeData.id], nodeData)
     this.apply(op)
     return op
   }

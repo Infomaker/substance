@@ -1,4 +1,3 @@
-import BlockerPackage from '../blocker/BlockerPackage'
 import ButtonPackage from '../button/ButtonPackage'
 import ContextMenuPackage from '../context-menu/ContextMenuPackage'
 import GridPackage from '../grid/GridPackage'
@@ -7,12 +6,11 @@ import InputPackage from '../input/InputPackage'
 import LayoutPackage from '../layout/LayoutPackage'
 import ModalPackage from '../modal/ModalPackage'
 import OverlayPackage from '../overlay/OverlayPackage'
-import DropTeaserPackage from '../drop-teaser/DropTeaserPackage'
+import DropzonesPackage from '../dropzones/DropzonesPackage'
 import ScrollbarPackage from '../scrollbar/ScrollbarPackage'
 import ScrollPanePackage from '../scroll-pane/ScrollPanePackage'
 import BodyScrollPanePackage from '../body-scroll-pane/BodyScrollPanePackage'
 import SplitPanePackage from '../split-pane/SplitPanePackage'
-import SwitchTextTypePackage from '../switch-text-type/SwitchTextTypePackage'
 import TabbedPanePackage from '../tabbed-pane/TabbedPanePackage'
 import FilePackage from '../file/FilePackage'
 import Tool from '../tools/Tool'
@@ -26,8 +24,6 @@ export default {
   name: 'base',
   configure: function(config) {
     config.import(FilePackage)
-    config.import(BlockerPackage)
-    config.import(SwitchTextTypePackage)
     config.import(ScrollPanePackage)
     config.import(BodyScrollPanePackage)
     config.import(SplitPanePackage)
@@ -40,7 +36,7 @@ export default {
     config.import(LayoutPackage)
     config.import(ContextMenuPackage)
     config.import(OverlayPackage)
-    config.import(DropTeaserPackage)
+    config.import(DropzonesPackage)
     config.import(GutterPackage)
 
     // Setup base toolgroups
@@ -104,5 +100,8 @@ export default {
       config.addKeyboardShortcut('ctrl+shift+z', { command: 'redo' })
       config.addKeyboardShortcut('ctrl+a', { command: 'select-all' })
     }
-  }
+  },
+  UndoCommand,
+  RedoCommand,
+  SelectAllCommand
 }

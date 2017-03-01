@@ -15,10 +15,10 @@
   });
   ```
 */
-function request(method, url, data, cb) {
+export default function request(method, url, data, cb) {
   var request = new XMLHttpRequest()
   request.open(method, url, true)
-  request.setRequestHeader('Content-Type', 'application/json charset=UTF-8')
+  request.setRequestHeader('Content-Type', 'application/json; charset=UTF-8')
   request.onload = function() {
     if (request.status >= 200 && request.status < 400) {
       var res = request.responseText
@@ -44,5 +44,3 @@ function isJson(str) {
   }
   return true
 }
-
-export default request

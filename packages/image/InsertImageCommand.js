@@ -1,33 +1,17 @@
-import Command from '../../ui/Command'
-import paste from '../../model/transform/paste'
-import insertImageFromFile from './insertImageFromFile'
+import InsertNodeCommand from '../../ui/InsertNodeCommand'
+import insertImage from './insertImage'
 
-class ImageCommand extends Command {
-
-  getCommandState(params) {
-    let sel = params.selection
-    let surface = params.surface
-    let newState = {
-      disabled: true,
-      active: false
-    }
-    if (sel && !sel.isNull() && !sel.isCustomSelection() &&
-        surface && surface.isContainerEditor()) {
-      newState.disabled = false
-    }
-    return newState
-  }
+class ImageCommand extends InsertNodeCommand {
 
   /*
     Inserts file and image nodes
   */
-  execute(params, context) {
-    let state = this.getCommandState(params)
+  execute(params) {
     let editorSession = params.editorSession
 
     editorSession.transaction((tx) => {
       params.files.forEach((file) => {
-        insertImageFromFile(tx, file)
+        insertImage(tx, file)
       })
     })
   }

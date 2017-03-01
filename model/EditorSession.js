@@ -7,7 +7,6 @@ import SurfaceManager from '../packages/surface/SurfaceManager'
 import Transaction from '../model/Transaction'
 import CommandManager from '../ui/CommandManager'
 import DragManager from '../ui/DragManager'
-import Editing from '../ui/Editing'
 import GlobalEventHandler from '../ui/GlobalEventHandler'
 import MacroManager from '../ui/MacroManager'
 import KeyboardManager from '../ui/KeyboardManager'
@@ -53,16 +52,11 @@ class EditorSession extends EventEmitter {
     this._change = null
     this._info = null
 
-    this._flowStages = ['update', 'render', 'post-render', 'position', 'finalize']
+    this._flowStages = ['update', 'pre-render', 'render', 'post-render', 'position', 'finalize']
     // to get something executed directly after a flow
     this._postponed = []
 
     this._observers = {}
-
-    // TODO: do we really want this?
-    this._hasUnsavedChanges = false
-    this._isSaving = false
-    this._saveHandler = options.saveHandler
 
     this._lang = options.lang || this.configurator.getDefaultLanguage()
     this._dir = options.dir || 'ltr'
@@ -86,20 +80,28 @@ class EditorSession extends EventEmitter {
 
     let configurator = this.configurator
     let commands = configurator.getCommands()
-    let dragHandlers = configurator.createDragHandlers()
+    let dropHandlers = configurator.getDropHandlers()
     let macros = configurator.getMacros()
     let converterRegistry = configurator.getConverterRegistry()
     let editingBehavior = configurator.getEditingBehavior()
 
-    this.editing = new Editing(this, editingBehavior)
-
     this.fileManager = options.fileManager || new FileManager(this, configurator.getFileAdapters(), this._context)
+
+    // Handling of saving
+    this._hasUnsavedChanges = false
+    this._isSaving = false
+
+    if (options.saveHandler) {
+      this.saveHandler = options.saveHandler
+    } else {
+      this.saveHandler = configurator.getSaveHandler()
+    }
 
     // The command manager keeps the commandStates up-to-date
     this.commandManager = new CommandManager(this._context, commands)
     // The drag manager dispatches drag requests to registered drag handlers
     // TODO: after consolidating the API of this class, we probably need a less diverse context
-    this.dragManager = new DragManager(dragHandlers, Object.assign({}, this._context, {
+    this.dragManager = new DragManager(dropHandlers, Object.assign({}, this._context, {
       commandManager: this.commandManager
     }))
     // The macro manager dispatches to macro detectors at the end of the flow
@@ -221,6 +223,7 @@ class EditorSession extends EventEmitter {
   }
 
   setSelection(sel) {
+    // console.log('EditorSession.setSelection()', sel)
     if (sel && isPlainObject(sel)) {
       sel = this.getDocument().createSelection(sel)
     }
@@ -241,7 +244,6 @@ class EditorSession extends EventEmitter {
     this.setSelection({
       type: 'node',
       nodeId: nodeId,
-      mode: 'full',
       containerId: surface.getContainerId(),
       surfaceId: surface.id
     })
@@ -283,7 +285,7 @@ class EditorSession extends EventEmitter {
     E.g. if saveHandler not available at construction
   */
   setSaveHandler(saveHandler) {
-    this._saveHandler = saveHandler
+    this.saveHandler = saveHandler
   }
 
   /**
@@ -338,6 +340,10 @@ class EditorSession extends EventEmitter {
   */
   onUpdate(...args) {
     return this._registerObserver('update', args)
+  }
+
+  onPreRender(...args) {
+    return this._registerObserver('pre-render', args)
   }
 
   /**
@@ -412,46 +418,6 @@ class EditorSession extends EventEmitter {
     return this._registerObserver('finalize', args)
   }
 
-  /*
-    Low-level implementation for hook registration
-
-    @param {string} stage name of stage
-    @param {Function} handler handler function
-    @param {Object} observer context of the handler function
-    @param {Object} [options]
-
-    @example
-
-    Called when a flow stage is executed:
-
-    ```js
-    editorSession.on('update', this._onSessionUpdate, this)
-    ```
-
-    Called at a specific flow stage but only if a resource has changed:
-
-    ```js
-    editorSession.on('update', this._onSelectionUpdate, this, {
-      resource: 'selection'
-    })
-    ```
-    which is equivalent to
-    ```js
-    editorSession.onUpdate('selection', this._onSelectionUpdate, this)
-    ```
-
-    Called at a specific flow stage but only if a property has changed:
-    ```js
-    editorSession.on('update', this._onPropertyChanged, this, {
-      resource: 'document',
-      path: [node.id, 'content']
-    })
-    ```
-  */
-  // on(stage, ...args) {
-  //   return this._registerObserver(stage, args)
-  // }
-
   off(observer) {
     super.off(observer)
     this._deregisterObserver(observer)
@@ -499,8 +465,8 @@ class EditorSession extends EventEmitter {
     var clone = {
       ops: externalChange.ops.map(function(op) { return op.clone(); })
     }
-    DocumentChange.transformInplace(clone, this.doneChanges)
-    DocumentChange.transformInplace(clone, this.undoneChanges)
+    DocumentChange.transformInplace(clone, this._history.doneChanges)
+    DocumentChange.transformInplace(clone, this._history.undoneChanges)
   }
 
   _transformSelection(change) {
@@ -512,13 +478,15 @@ class EditorSession extends EventEmitter {
 
   _commit(change, info) {
     this._commitChange(change, info)
+    // TODO: Not sure this is the best place to mark the session dirty
+    this._hasUnsavedChanges = true
     this.startFlow()
   }
 
   _commitChange(change, info) {
     change.timestamp = Date.now()
     this._applyChange(change, info)
-    if (info['history'] !== false) {
+    if (info['history'] !== false && !info['hidden']) {
       this._history.push(change.invert())
     }
     var newSelection = change.after.selection || Selection.nullSelection
@@ -531,6 +499,10 @@ class EditorSession extends EventEmitter {
   }
 
   _applyChange(change, info) {
+    if (!change) {
+      console.error('FIXME: change is null.')
+      return
+    }
     this.getDocument()._apply(change)
     this._setDirty('document')
     this._change = change
@@ -548,29 +520,33 @@ class EditorSession extends EventEmitter {
     Save session / document
   */
   save() {
-    var doc = this.getDocument()
     var saveHandler = this.saveHandler
 
     if (this._hasUnsavedChanges && !this._isSaving) {
       this._isSaving = true
       // Pass saving logic to the user defined callback if available
       if (saveHandler) {
-        // TODO: calculate changes since last save
-        var changes = []
-        saveHandler.saveDocument(doc, changes, function(err) {
-
+        let saveParams = {
+          editorSession: this,
+          fileManager: this.fileManager
+        }
+        return saveHandler.saveDocument(saveParams)
+        .then(() => {
+          this._hasUnsavedChanges = false
+          // We update the selection, just so a selection update flow is
+          // triggered (which will update the save tool)
+          // TODO: model this kind of update more explicitly. It could be an 'update' to the
+          // document resource (hasChanges was modified)
+          this.setSelection(this.getSelection())
+        })
+        .catch((err) => {
+          console.error('Error during save', err)
+        }).then(() => { // finally
           this._isSaving = false
-          if (err) {
-            console.error('Error during save')
-          } else {
-            this._hasUnsavedChanges = false
-            // af
-            this._triggerUpdateEvent({}, {force: true})
-          }
-        }.bind(this))
-
+        })
       } else {
         console.error('Document saving is not handled at the moment. Make sure saveHandler instance provided to editorSession')
+        return Promise.reject()
       }
     }
   }
@@ -664,7 +640,7 @@ class EditorSession extends EventEmitter {
   _deregisterObserver(observer) {
     // TODO: we should optimize this, as ATM this needs to traverse
     // a lot of registered listeners
-    forEach(this._observers, function(observers) {
+    forEach(this._observers, (observers) => {
       for (var i = 0; i < observers.length; i++) {
         var entry = observers[i]
         if (entry.context === observer) {
@@ -674,6 +650,9 @@ class EditorSession extends EventEmitter {
         }
       }
     })
+    // add this flag so that we can skip when a listener has deregistered
+    // during notification iteration
+    observer._deregistered = true
   }
 
   _notifyObservers(stage) {
@@ -683,13 +662,20 @@ class EditorSession extends EventEmitter {
     // We could optimize this by 'compiling' a list of observers for
     // each configuration, maybe lazily
     // for now we accept this circumstance
-    const observers = this._observers[stage]
-    if (!observers) return
-    observers.forEach((o) => {
+    let _observers = this._observers[stage]
+    if (!_observers) return
+    // Make a copy so that iteration does not get confused, when listeners deregister
+    // TODO: we could improve this by using a custom data structure that allows
+    // manipulation during iteration
+    let observers = _observers.slice()
+    for (let i = 0; i < observers.length; i++) {
+      let o = observers[i]
+      // an observer might have been deregistered while this iteration was going on
+      if (o._deregistered) continue
       if (!o.resource) {
         o.handler.call(o.context, this)
       } else if (o.resource === 'document') {
-        if (!this.hasDocumentChanged()) return
+        if (!this.hasDocumentChanged()) continue
         const change = this.getChange()
         const info = this.getChangeInfo()
         const path = o.options.path
@@ -699,11 +685,11 @@ class EditorSession extends EventEmitter {
           o.handler.call(o.context, change, info, this)
         }
       } else {
-        if (!this.hasChanged(o.resource)) return
+        if (!this.hasChanged(o.resource)) continue
         const resource = this.get(o.resource)
         o.handler.call(o.context, resource, this)
       }
-    })
+    }
   }
 
   _setDirty(resource) {

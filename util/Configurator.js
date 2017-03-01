@@ -1,6 +1,6 @@
 import forEach from './forEach'
-import map from 'lodash/map'
-import isString from 'lodash/isString'
+import map from './map'
+import isString from './isString'
 import DocumentSchema from '../model/DocumentSchema'
 import EditingBehavior from '../model/EditingBehavior'
 import Registry from '../util/Registry'
@@ -8,7 +8,7 @@ import ComponentRegistry from '../ui/ComponentRegistry'
 import FontAwesomeIconProvider from '../ui/FontAwesomeIconProvider'
 import LabelProvider from '../ui/DefaultLabelProvider'
 import ToolGroup from '../packages/tools/ToolGroup'
-import KeyboardManager from '../ui/KeyboardManager'
+import SaveHandlerStub from '../packages/persistence/SaveHandlerStub'
 
 /**
   Default Configurator for Substance editors. It provides an API for
@@ -52,8 +52,6 @@ import KeyboardManager from '../ui/KeyboardManager'
   sure you don't run into cyclic dependencies as there is no checking for
   that at the moment.
 */
-
-/** INCLUDE_IN_API_DOCS */
 class Configurator {
   constructor() {
     this.config = {
@@ -70,11 +68,12 @@ class Configurator {
       textTypes: [],
       editingBehaviors: [],
       macros: [],
-      dndHandlers: [],
-      keyboardShortcuts: {},
+      dropHandlers: [],
+      keyboardShortcuts: [],
       icons: {},
       labels: {},
       lang: 'en_US',
+      SaveHandlerClass: null
     }
   }
 
@@ -360,15 +359,29 @@ class Configurator {
   }
 
   addDragAndDrop(DragAndDropHandlerClass) {
+    // we deprecated this after it became more clear what
+    // we actually needed to solve
+    console.warn('DEPRECATED: Use addDropHandler() instead')
     if (!DragAndDropHandlerClass.prototype._isDragAndDropHandler) {
       throw new Error('Only instances of DragAndDropHandler are allowed.')
     }
-    this.config.dndHandlers.push(DragAndDropHandlerClass)
+    this.addDropHandler(new DragAndDropHandlerClass())
+  }
+
+  addDropHandler(dropHandler) {
+    // legacy
+    if (dropHandler._isDragAndDropHandler) {
+      dropHandler.type = dropHandler.type || 'drop-asset'
+    }
+    this.config.dropHandlers.push(dropHandler)
   }
 
   addKeyboardShortcut(combo, spec) {
-    let key = KeyboardManager.parseCombo(combo)
-    this.config.keyboardShortcuts[key] = spec
+    let entry = {
+      key: combo,
+      spec: spec
+    }
+    this.config.keyboardShortcuts.push(entry)
   }
 
   addFileProxy(FileProxyClass) {
@@ -427,22 +440,22 @@ class Configurator {
     return doc
   }
 
-  createImporter(type, context) {
+  createImporter(type, context, options = {}) {
     var ImporterClass = this.config.importers[type]
-    var config = {
+    var config = Object.assign({
       schema: this.getSchema(),
       converters: this.getConverterRegistry().get(type),
       DocumentClass: this.config.schema.ArticleClass
-    }
+    }, options)
     return new ImporterClass(config, context)
   }
 
-  createExporter(type, context) {
+  createExporter(type, context, options = {}) {
     var ExporterClass = this.config.exporters[type]
-    var config = {
+    var config = Object.assign({
       schema: this.getSchema(),
       converters: this.getConverterRegistry().get(type)
-    }
+    }, options)
     return new ExporterClass(config, context)
   }
 
@@ -493,6 +506,10 @@ class Configurator {
     return this.converterRegistry
   }
 
+  getDropHandlers() {
+    return this.config.dropHandlers.slice(0)
+  }
+
   getSeed() {
     return this.config.seed
   }
@@ -523,12 +540,6 @@ class Configurator {
     return this.config.macros
   }
 
-  createDragHandlers() {
-    return this.config.dndHandlers.map(function(DragAndDropHandlerClass) {
-      return new DragAndDropHandlerClass()
-    })
-  }
-
   getKeyboardShortcuts() {
     return this.config.keyboardShortcuts
   }
@@ -539,6 +550,15 @@ class Configurator {
 
   getDefaultLanguage() {
     return this.config.lang || 'en_US'
+  }
+
+  setSaveHandlerClass(SaveHandlerClass) {
+    this.config.SaveHandlerClass = SaveHandlerClass
+  }
+
+  getSaveHandler() {
+    let SaveHandler = this.config.SaveHandlerClass || SaveHandlerStub
+    return new SaveHandler()
   }
 }
 

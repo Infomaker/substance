@@ -1,9 +1,9 @@
 import forEach from '../util/forEach'
-import isString from 'lodash/isString'
+import isString from '../util/isString'
 
-var ENTER = 1
-var EXIT = -1
-var ANCHOR = -2
+const ENTER = 1
+const EXIT = -1
+const ANCHOR = -2
 
 // Fragmenter
 // --------
@@ -222,8 +222,8 @@ function _extractEntries(annotations) {
       } else if (a.hasOwnProperty('fragmentationHint')) {
         l = a.fragmentationHint
       }
-      var startOffset = Math.min(a.startOffset, a.endOffset)
-      var endOffset = Math.max(a.startOffset, a.endOffset)
+      var startOffset = Math.min(a.start.offset, a.end.offset)
+      var endOffset = Math.max(a.start.offset, a.end.offset)
       var opener = {
         pos: startOffset,
         mode: ENTER,

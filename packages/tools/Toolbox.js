@@ -1,5 +1,5 @@
 import Component from '../../ui/Component'
-import isEqual from 'lodash/isEqual'
+import isEqual from '../../util/isEqual'
 
 class Toolbox extends Component {
 
@@ -50,6 +50,7 @@ class Toolbox extends Component {
 
     activeToolGroupNames.forEach((toolGroupName) => {
       let toolGroup = toolGroups.get(toolGroupName)
+      if (!toolGroup) return
       let tools = toolGroup.tools
       let activeTools = this.getActiveTools(tools, toolGroupName)
       activeToolGroups.set(toolGroupName, {

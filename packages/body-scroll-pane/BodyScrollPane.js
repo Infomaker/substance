@@ -1,6 +1,5 @@
-import Component from '../../ui/Component'
-// import getRelativeBoundingRect from '../../util/getRelativeBoundingRect'
-import getRelativeMouseBounds from '../../util/getRelativeMouseBounds'
+import AbstractScrollPane from '../scroll-pane/AbstractScrollPane'
+import DefaultDOMElement from '../../dom/DefaultDOMElement'
 
 /**
   Wraps content in a scroll pane.
@@ -23,7 +22,7 @@ import getRelativeMouseBounds from '../../util/getRelativeMouseBounds'
   )
   ```
 */
-class BodyScrollPane extends Component {
+class BodyScrollPane extends AbstractScrollPane {
 
   /*
     Expose scrollPane as a child context
@@ -34,20 +33,14 @@ class BodyScrollPane extends Component {
     }
   }
 
-  didMount() {
-    this.handleActions({
-      'domSelectionRendered': this._onDomSelectionRendered
-    })
-  }
-
-  dispose() {
-    this.context.editorSession.off(this)
+  getName() {
+    return 'body'
   }
 
   render($$) {
     let el = $$('div')
     if (this.props.contextMenu === 'custom') {
-      contentEl.on('contextmenu', this._onContextMenu)
+      el.on('contextmenu', this._onContextMenu)
     }
     el.append(this.props.children)
     return el
@@ -57,7 +50,7 @@ class BodyScrollPane extends Component {
     Returns the height of scrollPane (inner content overflows)
   */
   getHeight() {
-    return document.body.clientHeight
+    return window.innerHeight
   }
 
   /**
@@ -68,8 +61,7 @@ class BodyScrollPane extends Component {
   }
 
   getContentElement() {
-    // TODO: should be wrapped in DefaultDOMElement
-    return document.body
+    return DefaultDOMElement.wrapNativeElement(window.document.body)
   }
 
   // /**
@@ -84,6 +76,10 @@ class BodyScrollPane extends Component {
   */
   getScrollPosition() {
     return document.body.scrollTop
+  }
+
+  setScrollPosition(scrollPos) {
+    document.body.scrollTop = scrollPos
   }
 
   /**
@@ -104,47 +100,6 @@ class BodyScrollPane extends Component {
     console.warn('TODO: implement')
   }
 
-  _onDomSelectionRendered() {
-    const wsel = window.getSelection()
-    if (wsel.rangeCount === 0) return
-    const wrange = wsel.getRangeAt(0)
-    const contentRect = document.body.getBoundingClientRect()
-    const selectionRect = wrange.getBoundingClientRect()
-
-    // TODO: needs work!
-    const positionHints = {
-      contentWidth: document.body.clientWidth,
-      contentHeight: document.body.clientHeight,
-      selectionRect: _getRelativeRect(contentRect, selectionRect),
-      innerContentRect: contentRect
-    }
-
-    this.emit('overlay:position', positionHints)
-  }
-
-  _onContextMenu(e) {
-    e.preventDefault()
-    let mouseBounds = getRelativeMouseBounds(e, document.body)
-    let positionHints = {
-      mouseBounds: mouseBounds
-    }
-    this.emit('context-menu:position', positionHints)
-  }
 }
-
-
-function _getRelativeRect(parentRect, childRect) {
-  var left = childRect.left - parentRect.left
-  var top = childRect.top - parentRect.top
-  return {
-    left: left,
-    top: top,
-    right: parentRect.width - left - childRect.width,
-    bottom: parentRect.height - top - childRect.height,
-    width: childRect.width,
-    height: childRect.height
-  }
-}
-
 
 export default BodyScrollPane

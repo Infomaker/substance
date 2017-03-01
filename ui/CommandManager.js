@@ -1,6 +1,6 @@
-import extend from 'lodash/extend'
+import extend from '../util/extend'
 import forEach from '../util/forEach'
-import isEqual from 'lodash/isEqual'
+import isEqual from '../util/isEqual'
 import Registry from '../util/Registry'
 
 /*

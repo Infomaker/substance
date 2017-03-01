@@ -1,15 +1,12 @@
-import isString from 'lodash/isString'
-import uuid from '../util/uuid'
+import isString from '../util/isString'
 import keys from '../util/keys'
-import platform from '../util/platform'
+import { setCursor, stepIntoIsolatedNode } from '../model/selectionHelpers'
 import EditingBehavior from '../model/EditingBehavior'
-import breakNode from '../model/transform/breakNode'
-import insertNode from '../model/transform/insertNode'
-import switchTextType from '../model/transform/switchTextType'
-import paste from '../model/transform/paste'
 import Surface from '../packages/surface/Surface'
-import RenderingEngine from './RenderingEngine'
 import IsolatedNodeComponent from '../packages/isolated-node/IsolatedNodeComponent'
+import RenderingEngine from '../ui/RenderingEngine'
+// import platform from '../util/platform'
+// import Component from '../ui/Component'
 
 /**
   Represents a flow editor that manages a sequence of nodes in a container. Needs to be
@@ -112,24 +109,18 @@ class ContainerEditor extends Surface {
     // native spellcheck
     el.attr('spellcheck', this.props.spellcheck === 'native')
 
-    if (this.isEmpty()) {
-      el.append(
-        $$('a').attr('href', '#').append('Start writing').on('click', this.onCreateText)
-      )
-    } else {
-      containerNode.getNodes().forEach(function(node) {
-        el.append(this._renderNode($$, node))
-      }.bind(this))
-    }
+    containerNode.getNodes().forEach(function(node) {
+      el.append(this._renderNode($$, node))
+    }.bind(this))
 
-    if (!this.props.disabled) {
+    // No editing if disabled by user or container is empty
+    if (!this.props.disabled && !this.isEmpty()) {
       el.addClass('sm-enabled')
       el.setAttribute('contenteditable', true)
     }
 
     return el
   }
-
 
   _renderNode($$, node) {
     if (!node) throw new Error('Illegal argument')
@@ -155,57 +146,110 @@ class ContainerEditor extends Surface {
     }
   }
 
-  _handleUpOrDownArrowKey(event) {
-    event.stopPropagation()
-    let direction = (event.keyCode === keys.UP) ? 'left' : 'right'
+  _selectNextIsolatedNode(direction) {
     let selState = this.getEditorSession().getSelectionState()
-    let sel = selState.getSelection()
-
-    // Note: this collapses the selection, just to let ContentEditable continue doing a cursor move
-    if (sel.isNodeSelection() && sel.isFull() && !event.shiftKey) {
-      this.domSelection.collapse(direction)
+    let node = (direction === 'left') ? selState.getPreviousNode() : selState.getNextNode()
+    if (!node || !node.isIsolatedNode()) return false
+    if (
+      (direction === 'left' && selState.isFirst()) ||
+      (direction === 'right' && selState.isLast())
+    ) {
+      this.getEditorSession().setSelection({
+        type: 'node',
+        nodeId: node.id,
+        containerId: selState.getContainer().id,
+        surfaceId: this.id
+      })
+      return true
     }
-    // HACK: ATM we have a cursor behavior in Chrome and FF when collapsing a selection
-    // e.g. have a selection from up-to-down and the press up, seems to move the focus
-    else if (!platform.isIE && !sel.isCollapsed() && !event.shiftKey) {
-      let doc = this.getDocument()
-      if (direction === 'left') {
-        this.setSelection(doc.createSelection(sel.start.path, sel.start.offset))
-      } else {
-        this.setSelection(doc.createSelection(sel.end.path, sel.end.offset))
-      }
-    }
-    // Note: we need this timeout so that CE updates the DOM selection first
-    // before we try to map it to the model
-    window.setTimeout(function() {
-      if (!this.isMounted()) return
-      this._updateModelSelection({ direction: direction })
-    }.bind(this))
+    return false
   }
 
   _handleLeftOrRightArrowKey(event) {
     event.stopPropagation()
-    let direction = (event.keyCode === keys.LEFT) ? 'left' : 'right'
-    let selState = this.getEditorSession().getSelectionState()
-    let sel = selState.getSelection()
-    // Note: collapsing the selection and let ContentEditable still continue doing a cursor move
-    if (sel.isNodeSelection() && sel.isFull() && !event.shiftKey) {
-      event.preventDefault()
-      this.setSelection(sel.collapse(direction))
-      return
-    } else {
-      super._handleLeftOrRightArrowKey.call(this, event)
+    const doc = this.getDocument()
+    const sel = this.getEditorSession().getSelection()
+    const left = (event.keyCode === keys.LEFT)
+    const right = !left
+    const direction = left ? 'left' : 'right'
+
+    if (sel && !sel.isNull()) {
+      const container = doc.get(sel.containerId, 'strict')
+
+      // Don't react if we are at the boundary of the document
+      if (sel.isNodeSelection()) {
+        let nodePos = container.getPosition(doc.get(sel.getNodeId()))
+        if ((left && nodePos === 0) || (right && nodePos === container.length-1)) {
+          event.preventDefault()
+          return
+        }
+      }
+
+      if (sel.isNodeSelection() && !event.shiftKey) {
+        this.domSelection.collapse(direction)
+      }
     }
+
+    window.setTimeout(() => {
+      this._updateModelSelection({ direction })
+    })
   }
 
-  _handleEnterKey(event) {
-    let sel = this.getEditorSession().getSelection()
-    if (sel.isNodeSelection() && sel.isFull()) {
-      event.preventDefault()
-      event.stopPropagation()
-    } else {
-      super._handleEnterKey.apply(this, arguments)
+  _handleUpOrDownArrowKey(event) {
+    event.stopPropagation()
+    const doc = this.getDocument()
+    const sel = this.getEditorSession().getSelection()
+    const up = (event.keyCode === keys.UP)
+    const down = !up
+    const direction = up ? 'left' : 'right'
+
+    if (sel && !sel.isNull()) {
+      const container = doc.get(sel.containerId, 'strict')
+      // Don't react if we are at the boundary of the document
+      if (sel.isNodeSelection()) {
+        let nodePos = container.getPosition(doc.get(sel.getNodeId()))
+        if ((up && nodePos === 0) || (down && nodePos === container.length-1)) {
+          event.preventDefault()
+          return
+        }
+        // Unfortunately we need to navigate out of an isolated node
+        // manually, as even Chrome on Win is not able to do it.
+        let editorSession = this.getEditorSession()
+        // TODO the following fixes the mentioned problem for
+        // regular UP/DOWN (non expanding)
+        // For SHIFT+DOWN it happens to work, and only SHIFT-UP when started as NodeSelection needs to be fixed
+        if (!event.shiftKey) {
+          event.preventDefault()
+          if (up) {
+            let prev = container.getChildAt(nodePos-1)
+            setCursor(editorSession, prev, sel.containerId, 'after')
+            return
+          } else {
+            let next = container.getChildAt(nodePos+1)
+            setCursor(editorSession, next, sel.containerId, 'before')
+            return
+          }
+        }
+      }
     }
+
+    window.setTimeout(() => {
+      this._updateModelSelection({ direction })
+    })
+  }
+
+  _handleTabKey(event) {
+    const editorSession = this.getEditorSession()
+    const sel = editorSession.getSelection()
+    if (sel.isNodeSelection() && sel.isFull()) {
+      const comp = this.refs[sel.getNodeId()]
+      if (comp && stepIntoIsolatedNode(editorSession, comp)) {
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+    }
+    super._handleTabKey(event)
   }
 
   // Used by Clipboard
@@ -220,7 +264,6 @@ class ContainerEditor extends Surface {
     return this.containerId
   }
 
-  // TODO: do we really need this in addition to getContainerId?
   getContainer() {
     return this.getDocument().get(this.getContainerId())
   }
@@ -234,19 +277,13 @@ class ContainerEditor extends Surface {
     return super.isEditable.call(this) && !this.isEmpty()
   }
 
-  /*
-    Register custom editor behavior using this method
-  */
-  extendBehavior(extension) {
-    extension.register(this.editingBehavior)
-  }
-
   getTextTypes() {
     return this.textTypes || []
   }
 
   // Used by SwitchTextTypeTool
   // TODO: Filter by enabled commands for this Surface
+  // TODO: rethink
   getTextCommands() {
     var textCommands = {}
     this.commandRegistry.each(function(cmd) {
@@ -255,59 +292,6 @@ class ContainerEditor extends Surface {
       }
     });
     return textCommands
-  }
-
-  /* Editing behavior */
-
-  /**
-    Performs a {@link model/transform/breakNode} transformation
-  */
-  break(tx, args) {
-    return breakNode(tx, args)
-  }
-
-  /**
-    Performs an {@link model/transform/insertNode} transformation
-  */
-  insertNode(tx, args) {
-    if (args.selection.isPropertySelection() || args.selection.isContainerSelection()) {
-      return insertNode(tx, args)
-    }
-  }
-
-  /**
-   * Performs a {@link model/transform/switchTextType} transformation
-   */
-  switchType(tx, args) {
-    if (args.selection.isPropertySelection()) {
-      return switchTextType(tx, args)
-    }
-  }
-
-  selectFirst() {
-    let doc = this.getDocument()
-    let nodes = this.getContainer().nodes
-    if (nodes.length === 0) {
-      console.warn('ContainerEditor.selectFirst(): Container is empty.')
-      return
-    }
-    let node = doc.get(nodes[0])
-    let sel
-    if (node.isText()) {
-      sel = doc.createSelection(node.getTextPath(), 0)
-    } else {
-      sel = doc.createSelection(this.getContainerId(), [node.id], 0, [node.id], 1)
-    }
-    this.setSelection(sel)
-  }
-
-  /**
-    Performs a {@link model/transform/paste} transformation
-  */
-  paste(tx, args) {
-    if (args.selection.isPropertySelection() || args.selection.isContainerSelection()) {
-      return paste(tx, args)
-    }
   }
 
   // called by flow when subscribed resources have been updated
@@ -341,45 +325,8 @@ class ContainerEditor extends Surface {
       }
     }
   }
-
-  // Create a first text element
-  onCreateText(e) {
-    e.preventDefault()
-
-    let newSel;
-    this.transaction(function(tx) {
-      let container = tx.get(this.props.containerId)
-      let textType = tx.getSchema().getDefaultTextType()
-      let node = tx.create({
-        id: uuid(textType),
-        type: textType,
-        content: ''
-      })
-      container.show(node.id)
-
-      newSel = tx.createSelection({
-        type: 'property',
-        path: [ node.id, 'content'],
-        startOffset: 0,
-        endOffset: 0
-      })
-    }.bind(this))
-    this.rerender()
-    this.setSelection(newSel)
-  }
-
-  transaction(transformation, info) {
-    return this.editorSession.transaction((tx, args) => {
-      args.containerId = this.getContainerId()
-      args.editingBehavior = this.editingBehavior
-      return transformation(tx, args)
-    }, info)
-  }
-
 }
 
 ContainerEditor.prototype._isContainerEditor = true
-// TODO: where do we use this?
-ContainerEditor.isContainerEditor = true
 
 export default ContainerEditor

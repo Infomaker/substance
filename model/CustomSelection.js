@@ -1,5 +1,5 @@
-import cloneDeep from 'lodash/cloneDeep'
-import isEqual from 'lodash/isEqual'
+import cloneDeep from '../util/cloneDeep'
+import isEqual from '../util/isEqual'
 import Selection from './Selection'
 
 class CustomSelection extends Selection {

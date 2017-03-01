@@ -1,6 +1,6 @@
 import Component from './Component'
-import RenderingEngine from './RenderingEngine'
 import ResourceManager from './ResourceManager'
+import DOMSelection from './DOMSelection'
 
 /**
   Reusable abstract editor implementation.
@@ -45,7 +45,9 @@ class AbstractEditor extends Component {
     this.editingBehavior = this.editorSession.editingBehavior
     this.markersManager = this.editorSession.markersManager
 
-    this.ResourceManageranager = new ResourceManager(this.editorSession, this.getChildContext())
+    this.resourceManager = new ResourceManager(this.editorSession, this.getChildContext())
+
+    this.domSelection = new DOMSelection(this)
   }
 
   /**
@@ -81,6 +83,7 @@ class AbstractEditor extends Component {
       doc: this.doc, // TODO: remove in favor of editorSession
       componentRegistry: this.componentRegistry,
       surfaceManager: this.surfaceManager,
+      domSelection: this.domSelection,
       commandManager: this.commandManager,
       markersManager: this.markersManager,
       converterRegistry: this.converterRegistry,
@@ -89,10 +92,15 @@ class AbstractEditor extends Component {
       globalEventHandler: this.globalEventHandler,
       iconProvider: this.iconProvider,
       labelProvider: this.labelProvider,
+      resourceManager: this.resourceManager,
       // ATTENTION: this is a map of tool target names to maps of tool names to tools
       // i.e. a declarative way to map tools to tool groups
       toolGroups: this.toolGroups,
     }
+  }
+
+  getDocument() {
+    return this.editorSession.getDocument()
   }
 
   getConfigurator() {

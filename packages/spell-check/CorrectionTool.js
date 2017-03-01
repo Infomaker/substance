@@ -1,5 +1,4 @@
 import Tool from '../tools/Tool'
-import insertText from '../../model/transform/insertText'
 
 class CorrectionTool extends Tool {
 
@@ -33,11 +32,17 @@ class CorrectionTool extends Tool {
 
   _applyCorrection(suggestion) {
     let editorSession = this.context.editorSession
-    editorSession.transaction(function(tx, args) {
-      return insertText(tx, {
-        selection: args.selection,
-        text: suggestion
+    let node = this.props.node
+    editorSession.transaction((tx) => {
+      let sel = tx.getSelection()
+      tx.setSelection({
+        type: 'property',
+        path: node.start.path,
+        startOffset: node.start.offset,
+        endOffset: node.end.offset,
+        containerId: sel.containerId
       })
+      tx.insertText(suggestion)
     })
   }
 }

@@ -1,4 +1,4 @@
-import ImageNode from './Image'
+import ImageNode from './ImageNode'
 import ImageComponent from './ImageComponent'
 import ImageHTMLConverter from './ImageHTMLConverter'
 import ImageXMLConverter from './ImageXMLConverter'
@@ -26,7 +26,7 @@ export default {
       de: 'Bild einfügen'
     })
 
-    config.addDragAndDrop(DropImage)
+    config.addDropHandler(DropImage)
     config.addFileProxy(ImageFileProxy)
   },
   ImageNode: ImageNode,

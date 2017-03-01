@@ -12,8 +12,8 @@
 @import './codeblock/_codeblock.css';
 /* context-menu */
 @import './context-menu/_context-menu.css';
-/* drop-teaser */
-@import './drop-teaser/_drop-teaser.css';
+/* dropzones */
+@import './dropzones/_dropzones.css';
 /* emphasis */
 @import './emphasis/_emphasis.css';
 /* heading */
@@ -46,6 +46,8 @@
 @import './layout/_layout.css';
 /* tabbed-pane */
 @import './tabbed-pane/_tabbed-pane.css';
+/* table */
+@import './table/_table.css';
 /* grid */
 @import './grid/_grid.css';
 /* modal */

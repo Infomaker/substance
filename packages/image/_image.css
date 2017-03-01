@@ -6,9 +6,6 @@
 }
 .sc-image img {
   display: block;
-  max-width: 1600px;
-}
-.sc-image .se-progress-bar {
-  width: 400px;
-  height: 300px;
+  max-width: 100%;
+  margin: 0px auto;
 }

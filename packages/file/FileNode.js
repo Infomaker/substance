@@ -11,7 +11,7 @@ class FileNode extends DocumentNode {
       return this.proxy.getUrl()
     } else {
       // this happens if no FileProxy is attached
-      console.warn('No file proxy attached to ', this.node.id)
+      console.warn('No file proxy attached to ', this.id)
       return ''
     }
   }
@@ -22,21 +22,12 @@ class FileNode extends DocumentNode {
 }
 
 FileNode.type = 'file'
-FileNode.define({
-  url: { type: 'string', optional: true },
-  fileType: { type: 'string', optional:true },
-  mimeType: { type: 'string', optional:true },
-  data: { type: 'object', optional:true }
-})
 
-FileNode.strip = function(nodeData) {
-  return {
-    type: nodeData.type,
-    id: nodeData.id,
-    url: nodeData.url,
-    fileType: nodeData.fileType,
-    mimeType: nodeData.mimeType
-  }
+FileNode.schema = {
+  url: { type: 'string', optional: true },
+  fileType: { type: 'string', optional: true },
+  mimeType: { type: 'string', optional: true },
+  sourceFile: { type: 'object', optional: true }
 }
 
 FileNode.prototype._isFileNode = true

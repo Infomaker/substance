@@ -6,9 +6,11 @@ class SpellError extends Marker {
   }
 }
 
-SpellError.define({
+SpellError.schema = {
   type: 'spell-error',
   suggestions: { type: ['object'], default: [] }
-})
+}
+
+SpellError.scope = 'document'
 
 export default SpellError

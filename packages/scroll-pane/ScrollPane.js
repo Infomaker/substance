@@ -1,14 +1,13 @@
 import platform from '../../util/platform'
-import Component from '../../ui/Component'
 import Scrollbar from '../scrollbar/Scrollbar'
 import getRelativeBoundingRect from '../../util/getRelativeBoundingRect'
-import getRelativeMouseBounds from '../../util/getRelativeMouseBounds'
+import AbstractScrollPane from './AbstractScrollPane'
 
 /**
   Wraps content in a scroll pane.
 
-  @class ScrollPane
-  @component
+  NOTE: It is best practice to put all overlays as direct childs of the ScrollPane
+        to reduce the chance that positioning gets messed up (position: relative)
 
   @prop {String} scrollbarType 'native' or 'substance' for a more advanced visual scrollbar. Defaults to 'native'
   @prop {String} [scrollbarPosition] 'left' or 'right' only relevant when scrollBarType: 'substance'. Defaults to 'right'
@@ -27,18 +26,10 @@ import getRelativeMouseBounds from '../../util/getRelativeMouseBounds'
   })
   ```
 */
-class ScrollPane extends Component {
-
-  /*
-    Expose scrollPane as a child context
-  */
-  getChildContext() {
-    return {
-      scrollPane: this
-    }
-  }
+class ScrollPane extends AbstractScrollPane {
 
   didMount() {
+    super.didMount()
     if (this.refs.scrollbar && this.props.highlights) {
       this.props.highlights.on('highlights:updated', this.onHighlightsUpdated, this)
     }
@@ -52,14 +43,10 @@ class ScrollPane extends Component {
       })
       this.context.editorSession.onPosition(this._onPosition, this)
     }
-
-    this.handleActions({
-      'domSelectionRendered': this._onDomSelectionRendered
-    })
-    this.context.dragManager.on('drop-teaser:position-requested', this._onDropTeaserPositionRequested, this)
   }
 
   dispose() {
+    super.dispose()
     if (this.props.highlights) {
       this.props.highlights.off(this)
     }
@@ -195,6 +182,11 @@ class ScrollPane extends Component {
     return scrollableEl.getProperty('scrollTop')
   }
 
+  setScrollPosition(scrollPos) {
+    let scrollableEl = this.getScrollableElement()
+    scrollableEl.setProperty('scrollTop', scrollPos)
+  }
+
   /**
     Get offset relative to `.se-content`.
 
@@ -224,79 +216,27 @@ class ScrollPane extends Component {
         shouldScroll = (offset < oldOffset || oldOffset+height<offset)
       }
       if (shouldScroll) {
-        scrollableEl.setProperty('scrollTop', offset)
+        this.setScrollPosition(offset)
       }
     } else {
       console.warn(componentId, 'not found in scrollable container')
     }
   }
 
-  _onDropTeaserPositionRequested(dragState) {
-    let targetEl = dragState.targetEl
-    if (!targetEl) return
-
-    let contentContainerEl = this.refs.content.getNativeElement()
-    let rect = getRelativeBoundingRect(targetEl.getNativeElement(), contentContainerEl)
-
-    if (dragState.insertMode === 'before') {
-      rect.bottom = rect.bottom + rect.height
-    } else {
-      rect.top = rect.top + rect.height
-    }
-    this.emit('drop-teaser:position', { rect: rect, visible: dragState.isContainerDrop })
-  }
-
-  _onDomSelectionRendered() {
-    const wsel = window.getSelection()
-    if (wsel.rangeCount === 0) return
-    const wrange = wsel.getRangeAt(0)
-    const contentRect = this.refs.content.getNativeElement().getBoundingClientRect()
-    const innerContentRect = this.refs.content.getChildAt(0).getNativeElement().getBoundingClientRect()
-    let selectionRect = wrange.getBoundingClientRect()
-    if (selectionRect.top === 0 && selectionRect.bottom === 0) {
-      selectionRect = this._fixForCursorRectBug()
-    }
-    const positionHints = {
-      contentWidth: contentRect.width,
-      contentHeight: contentRect.height,
-      selectionRect: _getRelativeRect(contentRect, selectionRect),
-      innerContentRect: _getRelativeRect(contentRect, innerContentRect)
-    }
-
-    this.emit('overlay:position', positionHints)
+  /*
+    Determines the selection bounding rectangle relative to the scrollpane's content.
+  */
+  onSelectionPositioned(...args) {
+    super.onSelectionPositioned(...args)
     this._updateScrollbar()
-  }
-
-  _fixForCursorRectBug() {
-    let wsel = window.getSelection()
-    let rects = wsel.anchorNode.parentElement.getClientRects()
-    return rects[0]
   }
 
   _onContextMenu(e) {
-    e.preventDefault()
-    let contentContainerEl = this.refs.content.el.el
-    let mouseBounds = getRelativeMouseBounds(e, contentContainerEl)
-    let positionHints = {
-      mouseBounds: mouseBounds
-    }
-    this.emit('context-menu:position', positionHints)
+    super._onContextMenu(e)
     this._updateScrollbar()
   }
+
 }
 
-
-function _getRelativeRect(parentRect, childRect) {
-  var left = childRect.left - parentRect.left
-  var top = childRect.top - parentRect.top
-  return {
-    left: left,
-    top: top,
-    right: parentRect.width - left - childRect.width,
-    bottom: parentRect.height - top - childRect.height,
-    width: childRect.width,
-    height: childRect.height
-  }
-}
 
 export default ScrollPane

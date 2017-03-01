@@ -1,11 +1,7 @@
 import isNil from '../util/isNil'
-import isNumber from '../util/isNumber'
 import Coordinate from './Coordinate'
 import Selection from './Selection'
 import PropertySelection from './PropertySelection'
-import CoordinateAdapter from './CoordinateAdapter'
-
-const RangeAdapter = PropertySelection.RangeAdapter
 
 /**
   A selection spanning multiple nodes.
@@ -46,54 +42,44 @@ class ContainerSelection extends Selection {
       @type {String}
     */
     this.containerId = containerId;
+    if (!this.containerId) throw new Error('Invalid arguments: `containerId` is mandatory');
 
-    /**
-      The path of the property where this annotations starts.
-      @type {String[]}
-    */
-    this.startPath = startPath;
-
-    /**
-      The character position where this annotations starts.
-      @type {Number}
-    */
-    this.startOffset = startOffset;
-
-    /**
-      The path of the property where this annotations ends.
-      @type {String[]}
-    */
-    this.endPath = isNil(endPath) ? startPath : endPath;
-
-    /**
-      The character position where this annotations ends.
-      @type {Number}
-    */
-    this.endOffset = isNil(endOffset) ? startOffset : endOffset;
+    this.start = new Coordinate(startPath, startOffset)
+    this.end = new Coordinate(isNil(endPath) ? startPath : endPath, isNil(endOffset) ? startOffset : endOffset)
 
     this.reverse = Boolean(reverse);
 
     this.surfaceId = surfaceId;
+  }
 
-    if (!this.containerId || !this.startPath || !isNumber(this.startOffset) ||
-     !this.endPath || !isNumber(this.endOffset) ) {
-      throw new Error('Invalid arguments: `containerId`, `startPath`, `startOffset`, `endPath`, and `endOffset` are mandatory');
-    }
+  get startPath() {
+    console.warn('DEPRECATED: use sel.start.path instead.')
+    return this.start.path
+  }
 
-    // dynamic adapters for Coordinate oriented implementations
-    this._internal.start = new CoordinateAdapter(this, 'startPath', 'startOffset');
-    this._internal.end = new CoordinateAdapter(this, 'endPath', 'endOffset');
-    this._internal.range = new RangeAdapter(this);
+  get startOffset() {
+    console.warn('DEPRECATED: use sel.start.offset instead.')
+    return this.start.offset
+  }
+
+  get endPath() {
+    console.warn('DEPRECATED: use sel.end.path instead.')
+    return this.end.path
+  }
+
+  get endOffset() {
+    console.warn('DEPRECATED: use sel.end.offset instead.')
+    return this.end.offset
   }
 
   toJSON() {
     return {
       type: 'container',
       containerId: this.containerId,
-      startPath: this.startPath,
-      startOffset: this.startOffset,
-      endPath: this.endPath,
-      endOffset: this.endOffset,
+      startPath: this.start.path,
+      startOffset: this.start.offset,
+      endPath: this.end.path,
+      endOffset: this.end.offset,
       reverse: this.reverse,
       surfaceId: this.surfaceId
     };
@@ -133,9 +119,9 @@ class ContainerSelection extends Selection {
     return [
       "ContainerSelection(",
       this.containerId, ", ",
-      JSON.stringify(this.startPath), ", ", this.startOffset,
+      JSON.stringify(this.start.path), ", ", this.start.offset,
       " -> ",
-      JSON.stringify(this.endPath), ", ", this.endOffset,
+      JSON.stringify(this.end.path), ", ", this.end.offset,
       (this.reverse?", reverse":""),
       (this.surfaceId?(", "+this.surfaceId):""),
       ")"
@@ -174,12 +160,12 @@ class ContainerSelection extends Selection {
       r2.end.isBefore(r1.end, strict));
   }
 
-  containsNodeFragment(nodeId, strict) {
+  containsNode(nodeId, strict) {
     var container = this.getContainer();
     var coor = new Coordinate([nodeId], 0);
     var address = container.getAddress(coor);
     var r = this._range(this);
-    // console.log('ContainerSelection.containsNodeFragment', address, 'is within', r.start, '->', r.end, '?');
+    // console.log('ContainerSelection.containsNode()', address, 'is within', r.start, '->', r.end, '?');
     var contained = r.start.isBefore(address, strict);
     if (contained) {
       address.offset = 1;
@@ -206,19 +192,6 @@ class ContainerSelection extends Selection {
     var r1 = this._range(this);
     var r2 = this._range(other);
     return r1.end.isEqual(r2.end);
-  }
-
-  containsNode(nodeId) {
-    var container = this.getContainer();
-    var startPos = container.getPosition(this.startPath[0]);
-    var endPos = container.getPosition(this.endPath[0]);
-    var pos = container.getPosition(nodeId);
-    if ((startPos>pos || endPos<pos) ||
-        (startPos === pos && this.startPath.length === 1 && this.startOffset > 0) ||
-        (endPos === pos && this.endPath.length === 1 && this.endOffset < 1)) {
-      return false;
-    }
-    return true;
   }
 
   /**
@@ -303,6 +276,18 @@ class ContainerSelection extends Selection {
   }
 
   /**
+    Get the node ids covered by this selection.
+
+    @returns {String[]} an array of ids
+  */
+  getNodeIds() {
+    const container = this.getContainer()
+    const startPos = container.getPosition(this.start.path[0])
+    const endPos = container.getPosition(this.end.path[0])
+    return container.nodes.slice(startPos, endPos+1)
+  }
+
+  /**
     Helper to create selection fragments for this ContainerSelection.
 
     Used for selection rendering, for instance.
@@ -310,29 +295,31 @@ class ContainerSelection extends Selection {
     @returns {Selection.Fragment[]} Fragments resulting from splitting this into property selections.
   */
   getFragments() {
+    // NOTE: maybe we come up with a helper like this at a later time, when the core concepts are ironed out.
+    // If you have used this before, you probably can write a simpler helper, like done in documentHelpers.getTextForSelection()
+    console.warn('DEPRECATED: this implementation turned out to be too complicated and will be removed soon.')
+
+    // DANGEROUS: to be absolutely correct this would need to get invalidated
     if(this._internal.fragments) {
       return this._internal.fragments;
     }
-
     /*
       NOTE:
         This implementation is a bit more complicated
         to simplify implementations at other places.
-        A ContainerSelections can be seen as a list of property and node
+        A ContainerSelection can be seen as a list of property and node
         fragments.
         The following implementation is covering all cases in a canonical
         way, considering all combinations of start end end coordinates
         either given as ([nodeId, propertyName], offset) or
         ([nodeId], 0|1).
     */
-
-
     var fragments = [];
 
     var doc = this.getDocument();
     var container = this.getContainer();
-    var startPos = container.getPosition(this.startPath[0]);
-    var endPos = container.getPosition(this.endPath[0]);
+    var startPos = container.getPosition(this.start.path[0]);
+    var endPos = container.getPosition(this.end.path[0]);
 
     var coor, node, nodeId, fragment, path, offset, text;
     if (startPos !== endPos) {
@@ -367,11 +354,11 @@ class ContainerSelection extends Selection {
           text = doc.get(path);
           fragments.push(
             new Selection.Fragment(path, 0, text.length, true)
-          );
+          )
         } else {
           fragments.push(
             new Selection.NodeFragment(container.nodes[pos])
-          );
+          )
         }
       }
 
@@ -407,24 +394,24 @@ class ContainerSelection extends Selection {
         fragments.push(
           new Selection.NodeFragment(nodeId)
         );
-      } else if (startIsNodeCoordinate && endIsNodeCoordinate && this.startOffset < this.endOffset) {
+      } else if (startIsNodeCoordinate && endIsNodeCoordinate && this.start.offset < this.end.offset) {
         fragments.push(
           new Selection.NodeFragment(nodeId)
         );
-      } else if (!startIsNodeCoordinate && endIsNodeCoordinate && this.endOffset > 0) {
-        text = doc.get(this.startPath);
+      } else if (!startIsNodeCoordinate && endIsNodeCoordinate && this.end.offset > 0) {
+        text = doc.get(this.start.path);
         fragments.push(
-          new Selection.Fragment(path, this.startOffset, text.length, (this.startOffset === 0))
+          new Selection.Fragment(path, this.start.offset, text.length, (this.start.offset === 0))
         );
-      } else if (startIsNodeCoordinate && !endIsNodeCoordinate && this.startOffset === 0) {
-        text = doc.get(this.endPath);
+      } else if (startIsNodeCoordinate && !endIsNodeCoordinate && this.start.offset === 0) {
+        text = doc.get(this.end.path);
         fragments.push(
-          new Selection.Fragment(path, 0, this.endOffset, (this.endOffset === text.length))
+          new Selection.Fragment(path, 0, this.end.offset, (this.end.offset === text.length))
         );
       } else if (!startIsNodeCoordinate && !endIsNodeCoordinate) {
-        text = doc.get(this.startPath);
+        text = doc.get(this.start.path);
         fragments.push(
-          new Selection.Fragment(path, this.startOffset, this.endOffset, (this.startOffset === 0 && this.endOffset === text.length))
+          new Selection.Fragment(path, this.start.offset, this.end.offset, (this.start.offset === 0 && this.end.offset === text.length))
         );
       }
     }
@@ -482,46 +469,14 @@ class ContainerSelection extends Selection {
     }
     return addressRange;
   }
+
+  get path() {
+    throw new Error('ContainerSelection has no path property. Use startPath and endPath instead');
+  }
+
 }
 
 ContainerSelection.prototype._isContainerSelection = true
-
-Object.defineProperties(ContainerSelection.prototype, {
-  path: {
-    get: function() {
-      throw new Error('ContainerSelection has no path property. Use startPath and endPath instead');
-    },
-    set: function() {
-      throw new Error('ContainerSelection has no path property. Use startPath and endPath instead.');
-    }
-  },
-  /**
-    @property {Coordinate} ContainerSelection.start
-  */
-  start: {
-    get: function() {
-      return this._internal.start;
-    },
-    set: function() { throw new Error('ContainerSelection.prototype.start is read-only.'); }
-  },
-  /**
-    @property {Coordinate} ContainerSelection.end
-  */
-  end: {
-    get: function() {
-      return this._internal.end;
-    },
-    set: function() { throw new Error('ContainerSelection.prototype.end is read-only.'); }
-  },
-
-  range: {
-    get: function() {
-      return this._internal.range;
-    },
-    set: function() { throw new Error('ContainerSelection.prototype.range is read-only.'); }
-  },
-
-});
 
 ContainerSelection.fromJSON = function(properties) {
   var sel = new ContainerSelection(properties);

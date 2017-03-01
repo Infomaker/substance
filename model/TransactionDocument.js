@@ -3,8 +3,7 @@ import uuid from '../util/uuid'
 import Document from './Document'
 import IncrementalData from './data/IncrementalData'
 import DocumentNodeFactory from './DocumentNodeFactory'
-
-var __id__ = 0
+import ParentNodeHook from './ParentNodeHook'
 
 /**
   A {@link Document} instance that is used during transaction.
@@ -34,8 +33,6 @@ class TransactionDocument extends Document {
   constructor(document) {
     super('SKIP')
 
-    this.__id__ = "TX_"+__id__++
-
     this.schema = document.schema
     this.nodeFactory = new DocumentNodeFactory(this)
     this.data = new IncrementalData(this.schema, {
@@ -52,6 +49,9 @@ class TransactionDocument extends Document {
     forEach(document.data.indexes, function(index, name) {
       this.data.addIndex(name, index.clone())
     }.bind(this))
+
+    // ATTENTION: this must before loading the seed
+    ParentNodeHook.register(this)
 
     this.loadSeed(document.toJSON())
 
@@ -77,10 +77,11 @@ class TransactionDocument extends Document {
     }
   }
 
-  createDefaultTextNode(content) {
+  createDefaultTextNode(text, dir) {
     return this.create({
       type: this.getSchema().getDefaultTextType(),
-      content: content || ''
+      content: text || '',
+      direction: dir
     })
   }
 
@@ -92,18 +93,14 @@ class TransactionDocument extends Document {
   }
 
   set(path, value) {
-    var realPath = this.getRealPath(path)
-    if (!realPath) throw new Error('Invalid path')
-    this.lastOp = this.data.set(realPath, value)
+    this.lastOp = this.data.set(path, value)
     if (this.lastOp) {
       this.ops.push(this.lastOp)
     }
   }
 
   update(path, diffOp) {
-    var realPath = this.getRealPath(path)
-    if (!realPath) throw new Error('Invalid path')
-    let op = this.lastOp = this.data.update(realPath, diffOp)
+    let op = this.lastOp = this.data.update(path, diffOp)
     if (op) {
       this.ops.push(op)
       return op
@@ -111,7 +108,8 @@ class TransactionDocument extends Document {
   }
 
   _onDocumentChanged(change) {
-    console.info('TODO: find out when this is actually used')
+    // NOTE: this is hooked to document:changed (low-level), to make sure that we
+    // update the transaction document too when the document is manipulated directly, e.g. using `document.create(...)`
     this._apply(change)
   }
 
@@ -139,6 +137,6 @@ class TransactionDocument extends Document {
   }
 }
 
-TransactionDocument.prototype.isTransactionDocument = true
+TransactionDocument.prototype._isTransactionDocument = true
 
 export default TransactionDocument
