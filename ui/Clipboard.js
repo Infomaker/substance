@@ -151,6 +151,12 @@ class Clipboard {
       return
     }
 
+
+    const node = this.getStartNodeForSelection();
+
+
+    console.log(node);
+
     // if we have content given as HTML we let the importer assess the quality first
     // and fallback to plain text import if it's bad
     if (html) {
@@ -224,6 +230,20 @@ class Clipboard {
     }
   }
 
+  getStartNodeForSelection() {
+    const sel = this.getEditorSession().getSelection();
+    const doc = this.getEditorSession().getDocument();
+
+    if (!sel || sel.isNull()) {
+      return null;
+    } else if (sel.isPropertySelection()) {
+      let text = doc.get(sel.start.path[0]);
+      return text.substring(sel.start.offset, sel.end.offset);
+    } else if (sel.isContainerSelection()) {
+      const nodeIds = sel.getNodeIds()
+      return doc.get(nodeIds[0]);
+    }
+  }
 }
 
 export default Clipboard
