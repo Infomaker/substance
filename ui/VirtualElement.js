@@ -711,4 +711,5 @@ VirtualElement.createElement = function() {
   return content
 }
 
+export const createElement = VirtualElement.createElement
 export default VirtualElement

@@ -187,6 +187,7 @@ export { default as TextBlockComponent } from './ui/TextBlockComponent'
 export { default as TextPropertyComponent } from './ui/TextPropertyComponent'
 export { default as TextPropertyEditor } from './ui/TextPropertyEditor'
 export { default as UnsupportedNodeComponent } from './ui/UnsupportedNodeComponent'
+export { createElement } from './ui/VirtualElement'
 
 // util
 export { default as ArrayIterator } from './util/ArrayIterator'
