@@ -662,9 +662,31 @@ VirtualElement.createElement = function() {
   var props = {}
   var classNames, ref
   var eventHandlers = []
+
+  var isEventHandler = function(attr) {
+    return attr.indexOf('on') === 0
+  }
+
+  var extractEventHandlerName = function(attr) {
+    return attr.replace('on', '').toLowerCase()
+  }
+
+  var addEventHandler = function(name, handler, handlers) {
+    if (!name && !isFunction(handler) && !isPlainObject(handler)) return false
+    handlers.push({ name, handler })
+    return true
+  }
+
   for(var key in _second) {
     if (!_second.hasOwnProperty(key)) continue
     var val = _second[key]
+
+    if (isEventHandler(key) && type === 'element') {
+      var name = extractEventHandlerName(key)
+      var eventHandlerAdded = addEventHandler(name, val, eventHandlers)
+      if (eventHandlerAdded) continue
+    }
+
     switch(key) {
       case 'class':
         classNames = val
