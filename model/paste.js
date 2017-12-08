@@ -61,7 +61,7 @@ function paste(tx, args) {
   Splits plain text by lines and puts them into paragraphs.
 */
 function _convertPlainTextToDocument(tx, args) {
-  let lines = args.text.split(/\s*\n\s*\n/)
+  let lines = args.text.split(/\s*[\r\n]\s*/)
   let pasteDoc = tx.getDocument().newInstance()
   let defaultTextType = pasteDoc.getSchema().getDefaultTextType()
   let container = pasteDoc.create({
