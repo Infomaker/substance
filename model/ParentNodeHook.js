@@ -107,22 +107,24 @@ class ParentNodeHook {
     function _setParent(parent, ids) {
       if (ids) {
         if (isArray(ids)) {
-          ids.forEach(_set)
+          // Tables use two-dimensional arrays so we need to recursively call
+          // _setParent while the ids parameter is still an array. This will still
+          // handle normal parent references as well as n-dimensional arrays if
+          // needed.
+          ids.forEach(id => _setParent(parent, id))
         } else {
-          _set(ids)
-        }
-      }
-      function _set(id) {
-        // Note: it can happen, e.g. during deserialization, that the child node
-        // is created later than the parent node
-        // so we store the parent for later
-        table[id] = parent
-        let child = doc.get(id)
-        if (child) {
-          child.parent = parent
+          // Note: it can happen, e.g. during deserialization, that the child node
+          // is created later than the parent node
+          // so we store the parent for later
+          table[ids] = parent
+          let child = doc.get(ids)
+          if (child) {
+            child.parent = parent
+          }
         }
       }
     }
+
     function _setRegisteredParent(child) {
       let parent = table[child.id]
       if (parent) {
