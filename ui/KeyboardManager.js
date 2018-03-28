@@ -29,8 +29,10 @@ class KeyboardManager {
   }
 
   onKeyUp(event) {
-    console.log("onKeyUp()->ALT+GR Up")
-    this.ALTGR_PRESSED = false;
+    console.log("onKeyUp()->ALT+GR Up", event.code, event.key, event)
+    if (event.code === 'AltRight') {
+      this.ALTGR_PRESSED = false;
+    }
   }
 
   onKeydown(event) {
