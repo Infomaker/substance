@@ -107,6 +107,7 @@ class Surface extends Component {
       if (this.isEditable()) {
         // Keyboard Events
         el.on('keydown', this.onKeyDown)
+        el.on('keyup', this.onKeyUp)
         // OSX specific handling of dead-keys
         if (!platform.isIE) {
           el.on('compositionstart', this.onCompositionStart)
@@ -289,6 +290,11 @@ class Surface extends Component {
 
     // keyboard shortcuts
     this.editorSession.keyboardManager.onKeydown(event)
+
+  }
+
+  onKeyUp(event) {
+    this.editorSession.keyboardManager.onKeyUp(event)
   }
 
   onTextInput(event) {

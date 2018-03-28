@@ -28,8 +28,15 @@ class KeyboardManager {
     })
   }
 
+  onKeyUp(event) {
+    this.ALTGR_PRESSED = false;
+  }
+
   onKeydown(event) {
     let key = generateKey(event)
+    if (event.code==='AltRight') {
+      this.ALTGR_PRESSED = true;
+    }
     let hook = this.keydownBindings[key]
     if (hook) {
       event.preventDefault()
@@ -67,7 +74,7 @@ class KeyboardManager {
 function generateKey(event) {
   let frags = []
   if (event.altKey) {
-    if (event.code === 'AltRight') {
+    if (event.code === 'AltRight' || this.ALTGR_PRESSED) {
       frags.push('ALTGR')
     } else {
       frags.push('ALT')
