@@ -5,7 +5,7 @@ class KeyboardManager {
 
   constructor(editorSession, bindings, options) {
     this.editorSession = editorSession
-
+    this.ALTGR_PRESSED = false
     this.context = options.context || {}
 
     this.keydownBindings = {}
@@ -34,7 +34,7 @@ class KeyboardManager {
   }
 
   onKeydown(event) {
-    let key = generateKey(event)
+    let key = generateKey.call(this, event)
     if (event.code==='AltRight') {
       console.log("onKeyDown->ALT+GR Down")
       this.ALTGR_PRESSED = true;
