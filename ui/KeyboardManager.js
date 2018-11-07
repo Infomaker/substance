@@ -35,6 +35,7 @@ class KeyboardManager {
   }
 
   onKeydown(event) {
+    event.ALTGR_PRESSED = this.ALTGR_PRESSED
     let key = generateKey.call(this, event)
     if (event.code==='AltRight') {
       this.ALTGR_PRESSED = true;
@@ -76,7 +77,7 @@ class KeyboardManager {
 function generateKey(event) {
   let frags = []
   if (event.altKey) {
-    if (event.code === 'AltRight' || this.ALTGR_PRESSED) {
+    if (event.code === 'AltRight' || event.ALTGR_PRESSED) {
       frags.push('ALTGR')
     } else {
       frags.push('ALT')
