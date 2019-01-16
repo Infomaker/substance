@@ -472,7 +472,7 @@ class Editing {
       if (!sel.containerId) throw new Error('insertBlockNode can only be used within a container.')
       let container = tx.get(sel.containerId)
       if (!sel.isCollapsed()) {
-        this.deletePropertySelection(tx)
+        this.deletePropertySelection(tx, sel)
         tx.setSelection(sel.collapse('left'))
       }
       let node = tx.get(sel.path[0])
