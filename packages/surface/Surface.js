@@ -383,7 +383,7 @@ class Surface extends Component {
     if (!(platform.isIE && platform.version<12) && event.detail >= 3) {
       let sel = this.getEditorSession().getSelection()
       if (sel.isPropertySelection()) {
-        this._selectProperty(sel.path)
+        this._selectProperty(sel.path, sel.surfaceId, sel.containerId)
         event.preventDefault()
         event.stopPropagation()
         return
@@ -614,15 +614,25 @@ class Surface extends Component {
     this._setSelection(sel)
   }
 
-  _selectProperty(path) {
+  _selectProperty(path, surfaceId = null, containerId = null) {
     let doc = this.getDocument()
     let text = doc.get(path)
-    this._setSelection(doc.createSelection({
+    let sel = {
       type: 'property',
       path: path,
       startOffset: 0,
       endOffset: text.length
-    }))
+    }
+
+    if (surfaceId !== null) {
+      sel.surfaceId = surfaceId
+    }
+
+    if (containerId !== null) {
+      sel.containerId = containerId
+    }
+
+    this._setSelection(doc.createSelection(sel))
   }
 
   // internal API for TextProperties to enable dispatching
