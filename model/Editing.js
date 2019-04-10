@@ -478,7 +478,12 @@ class Editing {
       let node = tx.get(sel.path[0])
       if (!node) throw new Error('Invalid selection.')
       let nodePos = container.getPosition(node.id, 'strict')
-      if (node.isText()) {
+      if (node.isList() || (node.parent && node.parent.isList())) {
+        // insert after
+        tx.update(container.getContentPath(), { type: 'insert', pos: nodePos+1, value: blockNode.id })
+        setCursor(tx, blockNode, container.id, 'before')
+      }
+      else if (node.isText()) {
         let text = node.getText()
         // replace node
         if (text.length === 0) {
