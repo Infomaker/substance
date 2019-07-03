@@ -284,6 +284,8 @@ class Surface extends Component {
       case keys.BACKSPACE:
       case keys.DELETE:
         return this._handleDeleteKey(event)
+      case keys.SPACE:
+        return this._handleSpace(event)
       default:
         break
     }
@@ -568,6 +570,14 @@ class Surface extends Component {
     window.setTimeout(()=>{
       this._updateModelSelection()
     })
+  }
+
+  _handleSpace(event) {
+    event.preventDefault()
+    event.stopPropagation()
+    this.editorSession.transaction(tx => {
+      tx.insertText(' ')
+    }, { action: 'type' })
   }
 
   _handleEnterKey(event) {
