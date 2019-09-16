@@ -592,9 +592,97 @@ class Surface extends Component {
     event.preventDefault()
     event.stopPropagation()
     let direction = (event.keyCode === keys.BACKSPACE) ? 'left' : 'right'
+
+    const doc = this.editorSession.getDocument()
+    const sel = this.editorSession.getSelection()
+
+    try {
+
+      // HACK: This hack, including clearMarkers is here because
+      // substance does not properly handle lists and list items
+      if (sel && sel.type === 'container' && sel.start.path[0] !== sel.end.path[0] && sel.end.offset === 0) {
+        const endNode = doc.get(sel.end.path[0])
+
+        if (endNode.type === 'list-item') {
+          // We have a selection ending at the first position in a liste item, which is dangerous
+          const items = endNode.parent.getItems()
+          const index = items.findIndex(i => i.id === endNode.id)
+
+          if (index > 0) {
+            const prevNode = items[index - 1]
+            // We want to set the end of the selection to the end end of the previous node instead
+            this.editorSession.setSelection({
+              type: 'container',
+              containerId: this.id,
+              startPath: sel.start.path,
+              startOffset: sel.start.offset,
+              endPath: [prevNode.id, 'content'],
+              endOffset: prevNode.getLength()
+            })
+          }
+        }
+      }
+    }
+    catch(e) {
+      console.error('List item deletion juggling failed: ', e)
+    }
+
+    this.editorSession.transaction(tx => {
+      this._clearMarkersFromSelection(tx)
+    }, {history: false, spellcheck: true})
+
     this.editorSession.transaction((tx) => {
       tx.deleteCharacter(direction)
-    }, { action: 'delete' })
+    }, {
+      action: 'delete',
+      history: true
+    })
+  }
+
+  _clearMarkersFromSelection(tx) {
+    const sel = this.editorSession.getSelection()
+    const doc = this.editorSession.document
+    const start = sel.start
+    const end = sel.end
+    const nodes = this._getMarkerSupportedNodes(doc, doc.getNodes()['body'].nodes)
+
+    let inSelection = false
+    nodes.forEach(node => {
+      if (node.id === start.path[0]) {
+        inSelection = true
+      }
+
+      if (inSelection && node.content) {
+        const markers = doc.getIndex('markers').get([node.id, 'content']).filter((marker) => {
+          return marker.type === 'spell-error'
+        })
+
+        markers.forEach(marker => {
+          tx.delete(marker.id)
+        })
+      }
+
+      if (node.id === end.path[0]) {
+        inSelection = false
+      }
+    })
+  }
+
+  _getMarkerSupportedNodes(doc, ids) {
+    const nodes = []
+
+    ids.forEach(nodeId => {
+      const node = doc.get(nodeId)
+
+      if (node.isList && node.isList()) {
+        nodes.push(...this._getMarkerSupportedNodes(doc, node.items))
+      }
+      else if (node.isText()) {
+        nodes.push(node)
+      }
+    })
+
+    return nodes
   }
 
   _hasNativeFocus() {
