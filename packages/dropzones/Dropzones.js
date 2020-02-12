@@ -205,7 +205,7 @@ export default class Dropzones extends Component {
           }
           // If component has dropzones declared
           if (comp.getDropzoneSpecs) {
-            let dropzoneSpecs = comp.getDropzoneSpecs()
+            let dropzoneSpecs = comp.getDropzoneSpecs(dragState)
             dropzoneSpecs.forEach((dropzoneSpec) => {
               let dropzoneComp = dropzoneSpec.component
               let rect = this._getBoundingRect(dropzoneComp)
