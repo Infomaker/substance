@@ -712,3 +712,5 @@ VirtualElement.createElement = function() {
 }
 
 export default VirtualElement
+
+export {VirtualComponent}
