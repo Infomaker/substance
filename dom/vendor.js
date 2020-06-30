@@ -8896,6 +8896,7 @@ var require$$2$3 = ( legacy$3 && legacy$3['default'] ) || legacy$3;
 
 var require$$3$3 = ( xml$1 && xml$1['default'] ) || xml$1;
 
+/** @type {any} */
 var Tokenizer_1 = Tokenizer$1;
 
 var decodeCodePoint = decode_codepoint;

@@ -133,6 +133,7 @@ Object.defineProperty(Node, 'schema', {
   }
 })
 
+/** @type {function} */
 Node.define = Node.defineSchema = function define(schema) {
   this.schema = schema
 }

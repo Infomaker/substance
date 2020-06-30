@@ -188,6 +188,7 @@ class TreeIndexArrays extends TreeIndex {
   }
 }
 
+/** @type {any} */
 TreeIndex.Arrays = TreeIndexArrays
 
 export default TreeIndex;
