@@ -106,8 +106,9 @@ class ContainerEditor extends Surface {
     el.addClass('sc-container-editor container-node ' + containerId)
       .attr("data-id", containerId)
 
-    // native spellcheck
-    el.attr('spellcheck', this.props.spellcheck === 'native')
+    // Attempt to disable native spellcheck, and Grammarly chrome extension
+    el.attr('spellcheck', false)
+    el.attr('data-gramm', 'false')
 
     containerNode.getNodes().forEach(function(node) {
       el.append(this._renderNode($$, node))
