@@ -200,6 +200,15 @@ function _transferWithDisambiguatedIds(sourceDoc, targetDoc, id, visited) {
       // NOTE: we need to recurse directly here, so that we can
       // update renamed references
       let val = node[prop.name]
+
+      // No match, no need to continue
+      if (!val) {
+        if (!prop.definition.optional) {
+          console.error(`Invalid child node, missing none optional "${prop.name}"`)
+        }
+        continue
+      }
+
       if (prop.isArray()) {
         _transferArrayOfReferences(sourceDoc, targetDoc, val, visited)
       } else {
