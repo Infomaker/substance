@@ -69,13 +69,26 @@ class AbstractScrollPane extends Component {
   }
 
   _scrollSelectionIntoView(selectionRect) {
+    
+    // bottombar is 40-ish pixels high, when setting threshold to 20px it makes for a better experience
+    const bottomBarThreshold = 20
+
     let upperBound = this.getScrollPosition()
-    let lowerBound = upperBound + this.getHeight()
+    let lowerBound = upperBound + this.getHeight() - bottomBarThreshold
+
     let selTop = selectionRect.top
     let selBottom = selectionRect.top + selectionRect.height
-    if ((selTop < upperBound && selBottom < upperBound) ||
-        (selTop > lowerBound && selBottom > lowerBound)) {
-      this.setScrollPosition(selTop)
+
+    if(selTop < upperBound && selBottom < upperBound) {
+      // Scroll up, 42 is probably some top-padding or something
+      this.setScrollPosition(selectionRect.top - 42)
+
+      return
+    }
+
+    if (selTop > lowerBound && selBottom > lowerBound) {
+      // Scroll down, leave 100px gap underneath
+      this.setScrollPosition(selectionRect.top - this.getHeight() + 100)
     }
   }
 

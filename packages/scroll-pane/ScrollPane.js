@@ -183,8 +183,32 @@ class ScrollPane extends AbstractScrollPane {
   }
 
   setScrollPosition(scrollPos) {
-    let scrollableEl = this.getScrollableElement()
-    scrollableEl.setProperty('scrollTop', scrollPos)
+
+    if(this.scrollTimer) {
+      // Already scrolling, will hopefully be a smoother experience to not call scrollTo again until it stops
+      return
+    }
+
+    const scrollableEl = this.getScrollableElement()
+
+    const onScroll = () => {
+
+      if(this.scrollTimer) {
+        window.clearTimeout(this.scrollTimer)
+      }
+
+      this.scrollTimer = window.setTimeout(() => {
+        this.scrollTimer = undefined
+        scrollableEl.getNativeElement().removeEventListener('scroll', onScroll)
+      }, 200)
+    }
+
+    scrollableEl.getNativeElement().addEventListener('scroll', onScroll)
+    scrollableEl.getNativeElement().scrollTo({
+      top: scrollPos,
+      behavior: 'smooth'
+    })
+
   }
 
   /**
